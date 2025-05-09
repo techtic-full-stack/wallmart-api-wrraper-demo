@@ -1,0 +1,104 @@
+import walmartAxios from "../config/axios";
+import { Order } from "../models/order.model";
+import { OrderLineItem } from "../models/orderLineItem.model";
+import { SyncState } from "../models/syncState.model";
+import { WalmartOrderType } from "../types/order";
+
+export const fetchRates = async (body: Body, token?: string) => {
+  const { data } = await walmartAxios.post("/shipping/rates", body, {
+    headers: { Authorization: token },
+  });
+  return data;
+};
+
+export const createLabel = async (body: Body, token?: string) => {
+  const { data } = await walmartAxios.post("/shipping/labels", body, {
+    headers: { Authorization: token },
+  });
+  return data;
+};
+
+export const markOrderShipped = async (purchaseOrderId: string, body: Body, token?: string) => {
+  const { data } = await walmartAxios.post(`/orders/${purchaseOrderId}/shipping`, body, {
+    headers: { Authorization: token },
+  });
+  return data;
+};
+
+export const syncOrders = async (token?: string) => {
+  try {
+    const SYNC_KEY = "walmart_last_order_sync";
+    const lastSync = await SyncState.findByPk(SYNC_KEY);
+    const lastFetched = lastSync?.value || "2000-01-01T00:00:00Z";
+    const response = await walmartAxios.get("/orders", {
+      params: {
+        limit: 50,
+        shipNodeType: "SellerFulfilled",
+        replacementInfo: false,
+        createdStartDate: lastFetched,
+      },
+      headers: {
+        Authorization: token,
+      },
+    });
+
+    const orders: WalmartOrderType[] =
+      response.data?.list?.elements?.order || [];
+    if (orders.length === 0) {
+      console.log("No new orders to sync.");
+      return;
+    }
+    
+    const latestOrderDate = orders.reduce((max, order) => {
+      const date = new Date(order.orderDate).toISOString();
+      return date > max ? date : max;
+    }, lastFetched);
+
+    for (const order of orders) {
+      const [savedOrder] = await Order.upsert({
+        order_number: order.purchaseOrderId,
+        customer_order_id: order.customerOrderId,
+        customer_email_id: order.customerEmailId,
+        order_date: new Date(order.orderDate),
+        status:
+          order.orderLines.orderLine[0]?.orderLineStatuses.orderLineStatus[0]
+            ?.status || "Unknown",
+        shipping_info: order.shippingInfo,
+      });
+
+      const orderId = savedOrder.id;
+
+      for (const lineItem of order.orderLines.orderLine) {
+        await OrderLineItem.upsert({
+          order_id: orderId,
+          line_number: lineItem.lineNumber,
+          product_name: lineItem.item.productName,
+          sku: lineItem.item.sku,
+          quantity: parseInt(lineItem.orderLineQuantity.amount, 10),
+          status:
+            lineItem.orderLineStatuses.orderLineStatus[0]?.status || "Unknown",
+          charges: lineItem.charges,
+        });
+      }
+    }
+
+    await SyncState.upsert({
+      key: SYNC_KEY,
+      value: latestOrderDate,
+    });
+
+    console.log(
+      `Synced ${orders.length} orders. Updated sync time to ${latestOrderDate}`
+    );
+    return {
+      success: true,
+      message: `Synced ${orders.length} orders.`,
+    }
+  } catch (err: any) {
+    console.error("Order sync failed:", err.message || err);
+    return {
+      success: false,
+      message: err.message || err,
+    }
+  }
+};

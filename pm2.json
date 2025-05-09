@@ -1,0 +1,14 @@
+{
+  "apps": [
+    {
+      "name": "wallmart-api-wrraper-5000",
+      "script": "yarn",
+      "args": "start",
+      "cwd": "/var/www/html/wallmart-api-wrraper",
+      "env": {
+        "NODE_ENV": "development",
+        "PORT": 5000
+      }
+    }
+  ]
+}

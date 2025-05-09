@@ -1,0 +1,24 @@
+# Node.js specific
+node_modules/
+.env
+*.log
+
+# TypeScript specific
+*.tsbuildinfo
+
+# VSCode specific
+.vscode/
+
+# Build output
+dist/
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# environment specific
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env
