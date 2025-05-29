@@ -9,7 +9,7 @@ const baseURL =
     : process.env.WALMART_API_SANDBOX_URL;
 
 const walmartAxios = axios.create({
-  baseURL: baseURL,
+  baseURL,
   headers: {
     "Content-Type": "application/json",
     Accept: "application/json",
@@ -17,18 +17,33 @@ const walmartAxios = axios.create({
 });
 
 walmartAxios.interceptors.request.use(async (config) => {
+
   config.headers["WM_SEC.ACCESS_TOKEN"] =
-    config.headers.Authorization || config.headers.authorization;
+  config.headers.Authorization || config.headers.authorization;
+  // Assign Access Token from custom 'token' header (not Authorization)
+  if (config.headers.token) {
+    config.headers["WM_SEC.ACCESS_TOKEN"] = config.headers.token;
+    delete config.headers.token; // cleanup
+  }
+
+  // Required Walmart headers
   config.headers["WM_SVC.NAME"] = "Walmart Marketplace";
   config.headers["WM_QOS.CORRELATION_ID"] = uuidv4();
+
+  // Optional but often required headers depending on the API
+  if (process.env.WALMART_CONSUMER_ID) {
+    config.headers["WM_CONSUMER.ID"] = process.env.WALMART_CONSUMER_ID;
+  }
+
+  if (process.env.WALMART_CHANNEL_TYPE) {
+    config.headers["WM_CONSUMER.CHANNEL.TYPE"] = process.env.WALMART_CHANNEL_TYPE;
+  }
 
   return config;
 });
 
 walmartAxios.interceptors.response.use(
-  (response) => {
-    return response;
-  },
+  (response) => response,
   (error) => {
     if (error.response) {
       console.error("Response Error:", error.response.data);
@@ -37,7 +52,7 @@ walmartAxios.interceptors.response.use(
       console.error("No response received:", error.request);
       return Promise.reject(error.request);
     } else {
-      console.error("Error setting up the request:", error.message);
+      console.error("Request Setup Error:", error.message);
       return Promise.reject(error.message);
     }
   }

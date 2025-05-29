@@ -7,7 +7,7 @@ import {
 } from "../schemas/joi.schema";
 import {
   createLabel,
-  fetchRates,
+  shipWithWalmartRates,
   markOrderShipped,
   syncOrders,
 } from "../services/walmart.service";
@@ -15,14 +15,9 @@ import { ExtendedRequest } from "../types/extended";
 
 export const getRates = async (req: ExtendedRequest, res: Response) => {
   try {
-    // logRequest(req);
-    // const { error } = fetchRatesSchema.validate(req.body);
-    // if (error) {
-    //   res.status(400).json({ error: error.details[0].message });
-    //   return;
-    // }
-    const data = await fetchRates(req.body, req.token);
-    res.json({ success: true, data });
+    const { success, message, rates, alertMessage } = await shipWithWalmartRates(req.body, req.token);
+
+    res.json({ success, message, rates, alertMessage });
     return;
   } catch (error: any) {
     handleError(res, error, "Failed to fetch rates");
