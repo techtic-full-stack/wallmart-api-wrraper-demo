@@ -6,11 +6,12 @@ import {
   markShippedSchema,
 } from "../schemas/joi.schema";
 import {
-  createLabel,
+  createShippingLabel,
   shipWithWalmartRates,
   markOrderShipped,
   syncOrders,
 } from "../services/walmart.service";
+
 import { ExtendedRequest } from "../types/extended";
 
 export const getRates = async (req: ExtendedRequest, res: Response) => {
@@ -25,18 +26,12 @@ export const getRates = async (req: ExtendedRequest, res: Response) => {
   }
 };
 
-export const createShippingLabel = async (
+export const getShippingLabel = async (
   req: ExtendedRequest,
   res: Response
 ) => {
   try {
-    // logRequest(req);
-    // const { error, value } = createLabelSchema.validate(req.body);
-    // if (error) {
-    //   res.status(400).json({ error: error.details[0].message });
-    //   return;
-    // }
-    const data = await createLabel(req.body, req.token);
+    const data = await createShippingLabel(req.body, req.token);
     res.json({ success: true, data });
     return;
   } catch (error: any) {

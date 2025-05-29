@@ -173,3 +173,48 @@ export const shipWithWalmartRates = async (body: any, token?: string) => {
     };
   }
 };
+
+export const createShippingLabel = async (body: any, token?: string) => {
+  try {
+    console.log("Creating shipping label with Walmart API.");
+
+    const requestBody = {
+      boxDimensions: body.boxDimensions,
+      fromAddress: body.fromAddress,
+      carrierServiceType: body.carrierServiceType,
+      carrierName: body.carrierName,
+      purchaseOrderId: body.purchaseOrderId,
+      boxItems: body.boxItems,
+      packageType: body.packageType,
+    };
+
+    const { data } = await walmartAxios.post(
+      "/shipping/labels",
+      requestBody,
+      {
+        headers: {
+          Authorization: token,
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          "WM_SEC.ACCESS_TOKEN": token,
+          "WM_QOS.CORRELATION_ID": `correlation-${Date.now()}`,
+          "WM_SVC.NAME": "Walmart Service Name",
+        },
+      }
+    );
+
+    console.log("Shipping label created:", JSON.stringify(data, null, 2));
+
+    return {
+      success: true,
+      message: "Shipping label created successfully.",
+      labelData: data,
+    };
+  } catch (error: any) {
+    console.error("Error in createShippingLabel:", error.message || error);
+    return {
+      success: false,
+      message: error.message || "Failed to create shipping label.",
+    };
+  }
+};
