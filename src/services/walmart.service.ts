@@ -150,8 +150,6 @@ export const shipWithWalmartRates = async (body: any, token?: string) => {
       }
     );
 
-    console.log("Shipping rates fetched:", JSON.stringify(data, null, 2));
-
     const sortedEstimates = data.data?.estimates
       ? data.data.estimates.sort(
           (a: { estimatedRate: { amount: number } }, b: { estimatedRate: { amount: number } }) =>
@@ -203,7 +201,7 @@ export const createShippingLabel = async (body: any, token?: string) => {
       }
     );
 
-    console.log("Shipping label created:", JSON.stringify(data, null, 2));
+    // console.log("Shipping label created:", JSON.stringify(data, null, 2));
 
     return {
       success: true,
