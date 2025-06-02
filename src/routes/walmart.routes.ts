@@ -4,9 +4,12 @@ import {
   getShippingLabel,
   markShipped,
   syncOrderManually,
+  getOrders,
 } from "../controllers/walmart.controller";
 
 const router = Router();
+
+router.get("/orders", getOrders);
 
 router.get("/sync-order", syncOrderManually);
 

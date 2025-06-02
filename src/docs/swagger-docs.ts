@@ -361,6 +361,113 @@
 
 /**
  * @swagger
+ * /walmart/orders:
+ *   get:
+ *     summary: Get all orders from database
+ *     description: Retrieves all orders from the database with their associated line items. Supports optional pagination parameters.
+ *     tags:
+ *       - Auth
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: limit
+ *         required: false
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           example: 10
+ *         description: Number of orders to fetch (for pagination)
+ *       - in: query
+ *         name: offset
+ *         required: false
+ *         schema:
+ *           type: integer
+ *           minimum: 0
+ *           example: 0
+ *         description: Number of orders to skip (for pagination)
+ *     responses:
+ *       200:
+ *         description: Orders retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Orders fetched successfully."
+ *                 totalCount:
+ *                   type: integer
+ *                   example: 150
+ *                   description: Total number of orders in the database
+ *                 orders:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: integer
+ *                         example: 1
+ *                       order_number:
+ *                         type: string
+ *                         example: "PO123456789"
+ *                       customer_order_id:
+ *                         type: string
+ *                         example: "CO987654321"
+ *                       customer_email_id:
+ *                         type: string
+ *                         example: "customer@example.com"
+ *                       order_date:
+ *                         type: string
+ *                         format: date-time
+ *                         example: "2025-06-01T10:30:00.000Z"
+ *                       status:
+ *                         type: string
+ *                         example: "Acknowledged"
+ *                       shipping_info:
+ *                         type: object
+ *                         description: Shipping information for the order
+ *                       OrderLineItems:
+ *                         type: array
+ *                         items:
+ *                           type: object
+ *                           properties:
+ *                             id:
+ *                               type: integer
+ *                               example: 1
+ *                             order_id:
+ *                               type: integer
+ *                               example: 1
+ *                             line_number:
+ *                               type: string
+ *                               example: "1"
+ *                             product_name:
+ *                               type: string
+ *                               example: "Sample Product"
+ *                             sku:
+ *                               type: string
+ *                               example: "SKU123456"
+ *                             quantity:
+ *                               type: integer
+ *                               example: 2
+ *                             status:
+ *                               type: string
+ *                               example: "Acknowledged"
+ *                             charges:
+ *                               type: object
+ *                               description: Charge information for the line item
+ *       401:
+ *         description: Unauthorized - Invalid or missing token
+ *       500:
+ *         description: Internal server error
+ */
+
+/**
+ * @swagger
  * /walmart/mark-shipped/{purchaseOrderId}:
  *   post:
  *     summary: Update order lines to Shipped and trigger customer charge

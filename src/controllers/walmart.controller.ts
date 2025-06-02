@@ -10,6 +10,7 @@ import {
   shipWithWalmartRates,
   markOrderShipped,
   syncOrders,
+  getAllOrders,
 } from "../services/walmart.service";
 
 import { ExtendedRequest } from "../types/extended";
@@ -61,10 +62,41 @@ export const syncOrderManually = async (
   try {
     logRequest(req);
     const data = await syncOrders(req?.token);
-    res.json({ success: true, data });
+    
+    // Return the enhanced response with order details
+    res.json({ 
+      success: true, 
+      data: {
+        success: data.success,
+        message: data.message,
+        syncedCount: data.syncedCount,
+        totalOrderCount: data.totalOrderCount,
+        orders: data.orders
+      }
+    });
     return;
   } catch (error) {
     handleError(res, {}, "Failed to sync order manually");
+    return;
+  }
+};
+
+export const getOrders = async (req: ExtendedRequest, res: Response) => {
+  try {
+    const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
+    const offset = req.query.offset ? parseInt(req.query.offset as string) : undefined;
+
+    const data = await getAllOrders(limit, offset);
+    
+    res.json({ 
+      success: data.success, 
+      message: data.message,
+      totalCount: data.totalCount,
+      orders: data.orders
+    });
+    return;
+  } catch (error: any) {
+    handleError(res, error, "Failed to fetch orders");
     return;
   }
 };

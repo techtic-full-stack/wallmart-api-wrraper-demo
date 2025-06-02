@@ -3,7 +3,6 @@ import { Order } from "../models/order.model";
 import { OrderLineItem } from "../models/orderLineItem.model";
 import { SyncState } from "../models/syncState.model";
 import { WalmartOrderType } from "../types/order";
-// import { Body } from "../types/extended";
 
 export const createLabel = async (body: Body, token?: string) => {
   const { data } = await walmartAxios.post("/shipping/labels", body, {
@@ -38,88 +37,116 @@ export const syncOrders = async (token?: string) => {
 
     const orders: WalmartOrderType[] =
       response.data?.list?.elements?.order || [];
-    if (orders.length === 0) {
-      console.log("No new orders to sync.");
-      return;
-    }
+    
+    let syncedCount = 0;
+    const syncedOrderIds: string[] = []; // Track IDs of synced orders
 
-    const latestOrderDate = orders.reduce((max, order) => {
-      const date = new Date(order.orderDate).toISOString();
-      return date > max ? date : max;
-    }, lastFetched);
+    if (orders.length > 0) {
+      const latestOrderDate = orders.reduce((max, order) => {
+        const date = new Date(order.orderDate).toISOString();
+        return date > max ? date : max;
+      }, lastFetched);
 
-    for (const order of orders) {
-      const existingOrder = await Order.findOne({
-        where: { order_number: order.purchaseOrderId },
-      });
-
-      const savedOrder = existingOrder
-        ? await existingOrder.update({
-            customer_order_id: order.customerOrderId,
-            customer_email_id: order.customerEmailId,
-            order_date: new Date(order.orderDate),
-            status:
-              order.orderLines.orderLine[0]?.orderLineStatuses.orderLineStatus[0]?.status || "Unknown",
-            shipping_info: order.shippingInfo,
-          })
-        : await Order.create({
-            order_number: order.purchaseOrderId,
-            customer_order_id: order.customerOrderId,
-            customer_email_id: order.customerEmailId,
-            order_date: new Date(order.orderDate),
-            status:
-              order.orderLines.orderLine[0]?.orderLineStatuses.orderLineStatus[0]?.status || "Unknown",
-            shipping_info: order.shippingInfo,
-          });
-
-      const orderId = savedOrder.id;
-
-      for (const lineItem of order.orderLines.orderLine) {
-        const existingLineItem = await OrderLineItem.findOne({
-          where: { order_id: orderId, line_number: lineItem.lineNumber },
+      for (const order of orders) {
+        const existingOrder = await Order.findOne({
+          where: { order_number: order.purchaseOrderId },
         });
 
-        if (existingLineItem) {
-          await existingLineItem.update({
-            product_name: lineItem.item.productName,
-            sku: lineItem.item.sku,
-            quantity: parseInt(lineItem.orderLineQuantity.amount, 10),
-            status:
-              lineItem.orderLineStatuses.orderLineStatus[0]?.status || "Unknown",
-            charges: lineItem.charges,
+        const savedOrder = existingOrder
+          ? await existingOrder.update({
+              customer_order_id: order.customerOrderId,
+              customer_email_id: order.customerEmailId,
+              order_date: new Date(order.orderDate),
+              status:
+                order.orderLines.orderLine[0]?.orderLineStatuses.orderLineStatus[0]?.status || "Unknown",
+              shipping_info: order.shippingInfo,
+            })
+          : await Order.create({
+              order_number: order.purchaseOrderId,
+              customer_order_id: order.customerOrderId,
+              customer_email_id: order.customerEmailId,
+              order_date: new Date(order.orderDate),
+              status:
+                order.orderLines.orderLine[0]?.orderLineStatuses.orderLineStatus[0]?.status || "Unknown",
+              shipping_info: order.shippingInfo,
+            });
+
+        const orderId = savedOrder.id;
+        syncedOrderIds.push(orderId); // Track this synced order
+
+        // ...existing code for line items...
+        for (const lineItem of order.orderLines.orderLine) {
+          const existingLineItem = await OrderLineItem.findOne({
+            where: { order_id: orderId, line_number: lineItem.lineNumber },
           });
-        } else {
-          await OrderLineItem.create({
-            order_id: orderId,
-            line_number: lineItem.lineNumber,
-            product_name: lineItem.item.productName,
-            sku: lineItem.item.sku,
-            quantity: parseInt(lineItem.orderLineQuantity.amount, 10),
-            status:
-              lineItem.orderLineStatuses.orderLineStatus[0]?.status || "Unknown",
-            charges: lineItem.charges,
-          });
+
+          if (existingLineItem) {
+            await existingLineItem.update({
+              product_name: lineItem.item.productName,
+              sku: lineItem.item.sku,
+              quantity: parseInt(lineItem.orderLineQuantity.amount, 10),
+              status:
+                lineItem.orderLineStatuses.orderLineStatus[0]?.status || "Unknown",
+              charges: lineItem.charges,
+            });
+          } else {
+            await OrderLineItem.create({
+              order_id: orderId,
+              line_number: lineItem.lineNumber,
+              product_name: lineItem.item.productName,
+              sku: lineItem.item.sku,
+              quantity: parseInt(lineItem.orderLineQuantity.amount, 10),
+              status:
+                lineItem.orderLineStatuses.orderLineStatus[0]?.status || "Unknown",
+              charges: lineItem.charges,
+            });
+          }
         }
+        syncedCount++;
       }
+
+      await SyncState.upsert({
+        key: SYNC_KEY,
+        value: latestOrderDate,
+      });
+
+      console.log(
+        `Synced ${syncedCount} orders. Updated sync time to ${latestOrderDate}`
+      );
+    } else {
+      console.log("No new orders to sync.");
     }
 
-    await SyncState.upsert({
-      key: SYNC_KEY,
-      value: latestOrderDate,
-    });
+    // Get only the synced orders from database to return
+    const syncedOrders = syncedOrderIds.length > 0 
+      ? await Order.findAll({
+          where: { id: syncedOrderIds },
+          include: [
+            {
+              model: OrderLineItem,
+              required: false,
+            }
+          ],
+          order: [['order_date', 'DESC']],
+        })
+      : [];
 
-    console.log(
-      `Synced ${orders.length} orders. Updated sync time to ${latestOrderDate}`
-    );
     return {
       success: true,
-      message: `Synced ${orders.length} orders.`,
+      message: `Synced ${syncedCount} orders.`,
+      syncedCount,
+      totalOrderCount: syncedOrders.length,
+      orders: syncedOrders,
     };
   } catch (err: any) {
     console.error("Order sync failed:", err.message || err);
+    
     return {
       success: false,
       message: err.message || err,
+      syncedCount: 0,
+      totalOrderCount: 0,
+      orders: [],
     };
   }
 };
@@ -213,6 +240,46 @@ export const createShippingLabel = async (body: any, token?: string) => {
     return {
       success: false,
       message: error.message || "Failed to create shipping label.",
+    };
+  }
+};
+
+export const getAllOrders = async (limit?: number, offset?: number) => {
+  try {
+    const queryOptions: any = {
+      include: [
+        {
+          model: OrderLineItem,
+          required: false,
+        }
+      ],
+      order: [['order_date', 'DESC']],
+    };
+
+    // Add pagination if limit is provided
+    if (limit) {
+      queryOptions.limit = limit;
+      if (offset) {
+        queryOptions.offset = offset;
+      }
+    }
+
+    const orders = await Order.findAll(queryOptions);
+    const totalCount = await Order.count();
+
+    return {
+      success: true,
+      message: "Orders fetched successfully.",
+      totalCount,
+      orders,
+    };
+  } catch (error: any) {
+    console.error("Error in getAllOrders:", error.message || error);
+    return {
+      success: false,
+      message: error.message || "Failed to fetch orders.",
+      totalCount: 0,
+      orders: [],
     };
   }
 };
