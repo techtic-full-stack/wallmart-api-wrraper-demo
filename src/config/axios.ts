@@ -46,7 +46,7 @@ walmartAxios.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response) {
-      console.error("Response Error:", error.response.data);
+      console.error("Response Error:", JSON.stringify(error.response.data, null, 2));
       return Promise.reject(error.response);
     } else if (error.request) {
       console.error("No response received:", error.request);

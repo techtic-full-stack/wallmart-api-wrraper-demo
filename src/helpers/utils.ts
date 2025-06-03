@@ -12,8 +12,12 @@ export const logRequest = (req: Request) => {
 };
 
 export const handleError = (res: Response, error: any, message: string) => {
-  console.log('error====================================>>>', error);
-  console.log('error====================================end');
+  console.error('Error Details:', JSON.stringify({
+    message: error?.message || message,
+    status: error?.status,
+    data: error?.data,
+    stack: error?.stack
+  }, null, 2));
 
   let errorMessage: string;
   let statusCode: number = error?.status || 500;
@@ -26,7 +30,7 @@ export const handleError = (res: Response, error: any, message: string) => {
         : error?.data?.error?.[0]?.info || error?.message || message;
   } catch (err) {
     // Handle circular structure or unexpected error format
-    errorMessage = "An error occurred, but it could not be serialized.";
+    errorMessage = error?.message || message || "An error occurred, but it could not be serialized.";
     console.error("Error serialization issue:", err);
   }
 

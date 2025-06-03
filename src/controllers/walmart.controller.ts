@@ -43,11 +43,10 @@ export const getShippingLabel = async (
 
 export const markShipped = async (req: ExtendedRequest, res: Response) => {
   try {
-    const { purchaseOrderId } = req.params; // Extract purchaseOrderId from request URL
-    const payload = req.body; // Use request body for the payload
+    const { purchaseOrderId } = req.params;
+    const payload = req.body;
 
-    const data = await markOrderShipped(purchaseOrderId, payload, req.token); // Pass purchaseOrderId dynamically
-
+    const data = await markOrderShipped(purchaseOrderId, payload, req.token);
     res.json({ success: true, data });
   } catch (error) {
     console.error("Error in markShipped:", error);
