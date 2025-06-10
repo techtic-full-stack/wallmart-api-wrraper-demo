@@ -39,7 +39,7 @@ export const syncOrders = async (token?: string) => {
       response.data?.list?.elements?.order || [];
     
     let syncedCount = 0;
-    const syncedOrderIds: string[] = []; // Track IDs of synced orders
+    const syncedOrderIds: number[] = []; // Track IDs of synced orders
 
     if (orders.length > 0) {
       const latestOrderDate = orders.reduce((max, order) => {
@@ -52,54 +52,56 @@ export const syncOrders = async (token?: string) => {
           where: { order_number: order.purchaseOrderId },
         });
 
+        // Map Walmart order data to new schema
+        const orderData = {
+          order_number: order.purchaseOrderId,
+          order_date: new Date(order.orderDate),
+          marketplace: "Walmart",
+          ship_to_first_name: order.shippingInfo?.postalAddress?.name?.split(' ')[0] || undefined,
+          ship_to_last_name: order.shippingInfo?.postalAddress?.name?.split(' ').slice(1).join(' ') || undefined,
+          ship_to_address1: order.shippingInfo?.postalAddress?.address1 || undefined,
+          ship_to_address2: order.shippingInfo?.postalAddress?.address2 || undefined,
+          ship_to_address_city: order.shippingInfo?.postalAddress?.city || undefined,
+          ship_to_address_state: order.shippingInfo?.postalAddress?.state || undefined,
+          ship_to_address_zip: order.shippingInfo?.postalAddress?.postalCode || undefined,
+          ship_to_address_country: order.shippingInfo?.postalAddress?.country || undefined,
+          total_listings_in_order: order.orderLines?.orderLine?.length || 0,
+          tags: {
+            customerOrderId: order.customerOrderId,
+            customerEmailId: order.customerEmailId,
+            originalShippingInfo: order.shippingInfo
+          }
+        };
+
         const savedOrder = existingOrder
-          ? await existingOrder.update({
-              customer_order_id: order.customerOrderId,
-              customer_email_id: order.customerEmailId,
-              order_date: new Date(order.orderDate),
-              status:
-                order.orderLines.orderLine[0]?.orderLineStatuses.orderLineStatus[0]?.status || "Unknown",
-              shipping_info: order.shippingInfo,
-            })
-          : await Order.create({
-              order_number: order.purchaseOrderId,
-              customer_order_id: order.customerOrderId,
-              customer_email_id: order.customerEmailId,
-              order_date: new Date(order.orderDate),
-              status:
-                order.orderLines.orderLine[0]?.orderLineStatuses.orderLineStatus[0]?.status || "Unknown",
-              shipping_info: order.shippingInfo,
-            });
+          ? await existingOrder.update(orderData)
+          : await Order.create(orderData);
 
         const orderId = savedOrder.id;
         syncedOrderIds.push(orderId); // Track this synced order
 
-        // ...existing code for line items...
+        // Process line items with new schema
         for (const lineItem of order.orderLines.orderLine) {
           const existingLineItem = await OrderLineItem.findOne({
-            where: { order_id: orderId, line_number: lineItem.lineNumber },
+            where: { 
+              order_id: orderId, 
+              sku: lineItem.item.sku 
+            },
           });
 
+          const lineItemData = {
+            order_id: orderId,
+            listing_name: lineItem.item.productName,
+            sku: lineItem.item.sku,
+            order_quantity: parseInt(lineItem.orderLineQuantity.amount, 10),
+            price: lineItem.charges?.charge?.find((c: any) => c.chargeType === 'PRODUCT')?.chargeAmount?.amount || 0,
+            listing_picture_url: undefined // Will need to be populated from another source
+          };
+
           if (existingLineItem) {
-            await existingLineItem.update({
-              product_name: lineItem.item.productName,
-              sku: lineItem.item.sku,
-              quantity: parseInt(lineItem.orderLineQuantity.amount, 10),
-              status:
-                lineItem.orderLineStatuses.orderLineStatus[0]?.status || "Unknown",
-              charges: lineItem.charges,
-            });
+            await existingLineItem.update(lineItemData);
           } else {
-            await OrderLineItem.create({
-              order_id: orderId,
-              line_number: lineItem.lineNumber,
-              product_name: lineItem.item.productName,
-              sku: lineItem.item.sku,
-              quantity: parseInt(lineItem.orderLineQuantity.amount, 10),
-              status:
-                lineItem.orderLineStatuses.orderLineStatus[0]?.status || "Unknown",
-              charges: lineItem.charges,
-            });
+            await OrderLineItem.create(lineItemData);
           }
         }
         syncedCount++;
